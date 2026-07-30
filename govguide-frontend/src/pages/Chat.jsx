@@ -14,41 +14,57 @@ import {
   Umbrella,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { sendChatMessage } from '../lib/api'
 
 const SERVICES = [
-  { label: 'NSFAS', icon: GraduationCap, prompt: 'How do I apply for NSFAS funding?' },
-  { label: 'ID Application', icon: IdCard, prompt: 'How do I apply for a South African ID?' },
-  { label: 'Passport', icon: Plane, prompt: 'What documents do I need for a passport application?' },
-  { label: 'Social Grant', icon: HeartHandshake, prompt: 'How do I apply for a social grant from SASSA?' },
-  { label: 'Business Reg.', icon: Briefcase, prompt: 'How do I register a business with CIPC?' },
-  { label: 'UIF', icon: Umbrella, prompt: 'How do I claim UIF benefits?' },
+  { label: 'NSFAS', slug: 'nsfas', icon: GraduationCap, prompt: 'How do I apply for NSFAS funding?' },
+  { label: 'ID Application', slug: 'id-application', icon: IdCard, prompt: 'How do I apply for a South African ID?' },
+  { label: 'Passport', slug: 'passport', icon: Plane, prompt: 'What documents do I need for a passport application?' },
+  { label: 'Social Grant', slug: 'social-grant', icon: HeartHandshake, prompt: 'How do I apply for a social grant from SASSA?' },
+  { label: 'Business Reg.', slug: 'business-registration', icon: Briefcase, prompt: 'How do I register a business with CIPC?' },
+  { label: 'UIF', slug: 'uif', icon: Umbrella, prompt: 'How do I claim UIF benefits?' },
 ]
 
 function Chat() {
   const navigate = useNavigate()
-  const { logout } = useAuth()
+  const { logout, session } = useAuth()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
+  const [sessionId, setSessionId] = useState(null)
+  const [activeService, setActiveService] = useState(null)
+  const [sending, setSending] = useState(false)
 
   function handleLogout() {
     logout()
     navigate('/')
   }
 
-  function sendMessage(text) {
+  async function sendMessage(text, serviceSlug) {
     const trimmed = text.trim()
-    if (!trimmed) return
+    if (!trimmed || sending) return
 
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', content: trimmed },
-      {
-        role: 'assistant',
-        content:
-          "Thanks for your question! I'm not connected to the AI backend yet, so this is a placeholder reply for now.",
-      },
-    ])
+    setMessages((prev) => [...prev, { role: 'user', content: trimmed }])
     setInput('')
+    setSending(true)
+
+    try {
+      const result = await sendChatMessage({
+        accessToken: session?.access_token,
+        message: trimmed,
+        sessionId,
+        serviceSlug: serviceSlug ?? activeService,
+      })
+      setSessionId(result.sessionId)
+      if (serviceSlug) setActiveService(serviceSlug)
+      setMessages((prev) => [...prev, { role: 'assistant', content: result.reply }])
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: `Sorry, something went wrong: ${err.message}` },
+      ])
+    } finally {
+      setSending(false)
+    }
   }
 
   function handleSubmit(e) {
@@ -94,12 +110,14 @@ function Chat() {
             Services
           </p>
           <div className="space-y-2.5">
-            {SERVICES.map(({ label, icon: Icon, prompt }) => (
+            {SERVICES.map(({ label, slug, icon: Icon, prompt }) => (
               <button
                 key={label}
                 type="button"
-                onClick={() => sendMessage(prompt)}
-                className="flex w-full items-center gap-2.5 rounded-lg border border-gray-700 px-4 py-3 text-left text-sm font-medium text-gray-200 transition-colors hover:border-govguide-green hover:bg-gray-800"
+                onClick={() => sendMessage(prompt, slug)}
+                className={`flex w-full items-center gap-2.5 rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors hover:border-govguide-green hover:bg-gray-800 ${
+                  activeService === slug ? 'border-govguide-green bg-gray-800 text-white' : 'border-gray-700 text-gray-200'
+                }`}
               >
                 <Icon className="h-4.5 w-4.5 text-govguide-gold" />
                 {label}
@@ -136,6 +154,11 @@ function Chat() {
                     {message.content}
                   </div>
                 ))}
+                {sending && (
+                  <div className="mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-gray-800 bg-gray-900 px-4 py-2.5 text-sm text-gray-400">
+                    Thinking…
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -156,11 +179,12 @@ function Chat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about any government service..."
-              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-gray-100 placeholder:text-gray-500 focus:border-govguide-green focus:outline-none focus:ring-2 focus:ring-govguide-green/20"
+              disabled={sending}
+              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-gray-100 placeholder:text-gray-500 focus:border-govguide-green focus:outline-none focus:ring-2 focus:ring-govguide-green/20 disabled:opacity-60"
             />
             <button
               type="submit"
-              disabled={!input.trim()}
+              disabled={!input.trim() || sending}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-govguide-green text-white transition-colors hover:bg-govguide-green/90 disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Send message"
             >

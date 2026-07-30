@@ -1,32 +1,59 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AuthContext } from './auth-context'
-
-const DEMO_EMAIL = 'test@gmail.com'
-const DEMO_PASSWORD = '123456'
-const STORAGE_KEY = 'govguide_demo_auth'
+import { supabase } from '../lib/supabaseClient'
 
 export function AuthProvider({ children }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => localStorage.getItem(STORAGE_KEY) === 'true'
-  )
+  const [session, setSession] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  function login(email, password) {
-    if (email.trim().toLowerCase() === DEMO_EMAIL && password === DEMO_PASSWORD) {
-      localStorage.setItem(STORAGE_KEY, 'true')
-      setIsAuthenticated(true)
-      return true
-    }
-    return false
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setLoading(false)
+    })
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession)
+    })
+
+    return () => listener.subscription.unsubscribe()
+  }, [])
+
+  async function login(email, password) {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    })
+    if (error) return { success: false, error: error.message }
+    return { success: true }
   }
 
-  function logout() {
-    localStorage.removeItem(STORAGE_KEY)
-    setIsAuthenticated(false)
+  async function signUp(email, password, fullName) {
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim().toLowerCase(),
+      password,
+      options: { data: { full_name: fullName } },
+    })
+    if (error) return { success: false, error: error.message }
+
+    // If email confirmation is required, Supabase returns a user with no session yet.
+    const needsConfirmation = !data.session
+    return { success: true, needsConfirmation }
   }
 
-  return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  async function logout() {
+    await supabase.auth.signOut()
+  }
+
+  const value = {
+    session,
+    user: session?.user ?? null,
+    isAuthenticated: !!session,
+    loading,
+    login,
+    signUp,
+    logout,
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
