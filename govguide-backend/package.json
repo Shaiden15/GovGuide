@@ -1,7 +1,7 @@
 {
   "name": "govguide-backend",
   "version": "1.0.0",
-  "description": "GovGuide SA backend API - Express server with Supabase, Claude AI, and Google Vision OCR integration",
+  "description": "GovGuide SA backend API - Express server with Supabase, Gemini AI (chat + document vision), OCR",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -13,7 +13,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@google-cloud/vision": "^5.3.7",
     "@google/genai": "^2.10.0",
     "@supabase/supabase-js": "^2.108.2",
     "cors": "^2.8.6",
