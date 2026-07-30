@@ -1,0 +1,11 @@
+node_modules
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Secrets / credential files
+*-key.json
+google-vision-key.json

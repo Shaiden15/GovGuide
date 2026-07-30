@@ -1,0 +1,27 @@
+{
+  "name": "govguide",
+  "version": "1.0.0",
+  "description": "GovGuide SA is an AI-powered platform that simplifies South African government services for citizens. The platform guides users through complex application processes, checks documents before submission, supports multiple African languages, and explains rejection letters in plain language.",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev --prefix govguide-backend\" \"npm run dev --prefix govguide-frontend\"",
+    "install:all": "npm install --prefix govguide-backend && npm install --prefix govguide-frontend",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Shaiden15/GovGuide.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Shaiden15/GovGuide/issues"
+  },
+  "homepage": "https://github.com/Shaiden15/GovGuide#readme",
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
