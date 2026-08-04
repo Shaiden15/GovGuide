@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  AlertTriangle,
   Briefcase,
+  CheckCircle2,
   ChevronDown,
+  FileText,
   GraduationCap,
   HeartHandshake,
   IdCard,
@@ -14,7 +17,9 @@ import {
   Umbrella,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { sendChatMessage } from '../lib/api'
+import { sendChatMessage, uploadDocument } from '../lib/api'
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 const SERVICES = [
   { label: 'NSFAS', slug: 'nsfas', icon: GraduationCap, prompt: 'How do I apply for NSFAS funding?' },
@@ -33,10 +38,49 @@ function Chat() {
   const [sessionId, setSessionId] = useState(null)
   const [activeService, setActiveService] = useState(null)
   const [sending, setSending] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef(null)
 
   function handleLogout() {
     logout()
     navigate('/')
+  }
+
+  function handleAttachClick() {
+    fileInputRef.current?.click()
+  }
+
+  async function handleFileSelected(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: 'That file is larger than the 10MB limit. Please upload a smaller file.' },
+      ])
+      return
+    }
+
+    setMessages((prev) => [...prev, { role: 'user', content: `📎 Uploaded: ${file.name}`, isDocument: true }])
+    setUploading(true)
+
+    try {
+      const { analysis } = await uploadDocument({
+        accessToken: session?.access_token,
+        file,
+        sessionId,
+      })
+      setMessages((prev) => [...prev, { role: 'assistant', content: '', analysis }])
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: `Sorry, I couldn't check that document: ${err.message}` },
+      ])
+    } finally {
+      setUploading(false)
+    }
   }
 
   async function sendMessage(text, serviceSlug) {
@@ -142,21 +186,25 @@ function Chat() {
               </div>
             ) : (
               <div className="mx-auto flex max-w-3xl flex-col gap-4">
-                {messages.map((message, i) => (
-                  <div
-                    key={i}
-                    className={
-                      message.role === 'user'
-                        ? 'ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-govguide-green px-4 py-2.5 text-sm text-white'
-                        : 'mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-gray-800 bg-gray-900 px-4 py-2.5 text-sm text-gray-100'
-                    }
-                  >
-                    {message.content}
-                  </div>
-                ))}
-                {sending && (
+                {messages.map((message, i) =>
+                  message.analysis ? (
+                    <DocumentAnalysisCard key={i} analysis={message.analysis} />
+                  ) : (
+                    <div
+                      key={i}
+                      className={
+                        message.role === 'user'
+                          ? 'ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-govguide-green px-4 py-2.5 text-sm text-white'
+                          : 'mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-gray-800 bg-gray-900 px-4 py-2.5 text-sm text-gray-100'
+                      }
+                    >
+                      {message.content}
+                    </div>
+                  )
+                )}
+                {(sending || uploading) && (
                   <div className="mr-auto max-w-[80%] rounded-2xl rounded-bl-sm border border-gray-800 bg-gray-900 px-4 py-2.5 text-sm text-gray-400">
-                    Thinking…
+                    {uploading ? 'Checking document…' : 'Thinking…'}
                   </div>
                 )}
               </div>
@@ -167,9 +215,18 @@ function Chat() {
             onSubmit={handleSubmit}
             className="flex items-center gap-3 border-t border-gray-800 bg-gray-900 p-4"
           >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              onChange={handleFileSelected}
+              className="hidden"
+            />
             <button
               type="button"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800"
+              onClick={handleAttachClick}
+              disabled={uploading}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Attach file"
             >
               <Paperclip className="h-4.5 w-4.5" />
@@ -194,6 +251,63 @@ function Chat() {
         </section>
       </div>
     </main>
+  )
+}
+
+function DocumentAnalysisCard({ analysis }) {
+  const hasIssues = analysis.issuesFound?.length > 0
+
+  return (
+    <div className="mr-auto flex w-full max-w-[85%] flex-col gap-3 rounded-2xl rounded-bl-sm border border-gray-800 bg-gray-900 p-4 text-sm text-gray-100">
+      <div className="flex items-center gap-2">
+        <FileText className="h-4.5 w-4.5 text-govguide-gold" />
+        <span className="font-medium text-white">{analysis.docTypeDetected || 'Document'}</span>
+      </div>
+
+      <p className="text-gray-300">{analysis.summary}</p>
+
+      <div className="flex flex-wrap gap-2 text-xs">
+        <StatusPill label="Complete" ok={analysis.isComplete} />
+        {analysis.isCertified !== null && <StatusPill label="Certified" ok={analysis.isCertified} />}
+        {analysis.isExpired !== null && <StatusPill label="Not expired" ok={!analysis.isExpired} />}
+      </div>
+
+      {hasIssues && (
+        <div className="rounded-lg border border-amber-900/50 bg-amber-950/30 p-3">
+          <p className="mb-1 flex items-center gap-1.5 font-medium text-amber-400">
+            <AlertTriangle className="h-4 w-4" />
+            Issues found
+          </p>
+          <ul className="list-inside list-disc space-y-1 text-amber-200/90">
+            {analysis.issuesFound.map((issue, i) => (
+              <li key={i}>{issue}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {analysis.rejectionMatch && (
+        <div className="rounded-lg border border-red-900/50 bg-red-950/30 p-3">
+          <p className="mb-1 font-medium text-red-400">Why you were rejected</p>
+          <p className="text-red-200/90">{analysis.rejectionMatch.explanation}</p>
+          <p className="mt-2 mb-1 font-medium text-govguide-green">How to fix it</p>
+          <p className="text-gray-300">{analysis.rejectionMatch.fixInstructions}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StatusPill({ label, ok }) {
+  return (
+    <span
+      className={`flex items-center gap-1 rounded-full px-2.5 py-1 ${
+        ok ? 'bg-govguide-green/15 text-govguide-green' : 'bg-red-950/40 text-red-400'
+      }`}
+    >
+      {ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+      {label}
+    </span>
   )
 }
 

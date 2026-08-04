@@ -23,3 +23,20 @@ export async function sendChatMessage({ accessToken, message, sessionId, service
   }
   return res.json()
 }
+
+export async function uploadDocument({ accessToken, file, sessionId }) {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (sessionId) formData.append('sessionId', sessionId)
+
+  const res = await fetch(`${API_BASE_URL}/documents/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `Upload failed with status ${res.status}`)
+  }
+  return res.json()
+}

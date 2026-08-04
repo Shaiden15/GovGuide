@@ -61,7 +61,12 @@ export async function postMessage(req, res, next) {
       contextBlocks = matches ?? []
     }
 
+    const structuredBlocks = session.service_id
+      ? await fetchStructuredContext(session.service_id)
+      : []
+
     const { text: reply, webSources } = await generateChatReply({
+      structuredBlocks,
       contextBlocks,
       history: history ?? [],
       userMessage: message,
@@ -90,6 +95,43 @@ export async function postMessage(req, res, next) {
   } catch (err) {
     next(err)
   }
+}
+
+async function fetchStructuredContext(serviceId) {
+  const [{ data: requirements }, { data: eligibilityRules }, { data: rejectionReasons }] = await Promise.all([
+    supabase.from('requirements').select('doc_type, description, mandatory').eq('service_id', serviceId),
+    supabase.from('eligibility_rules').select('rule_type, condition, value').eq('service_id', serviceId),
+    supabase.from('rejection_reasons').select('reason_code, description, fix_instructions').eq('service_id', serviceId),
+  ])
+
+  const blocks = []
+
+  if (requirements?.length) {
+    blocks.push({
+      title: 'Required documents',
+      content: requirements
+        .map((r) => `${r.doc_type} (${r.mandatory ? 'mandatory' : 'optional'}): ${r.description}`)
+        .join('\n'),
+    })
+  }
+
+  if (eligibilityRules?.length) {
+    blocks.push({
+      title: 'Eligibility rules',
+      content: eligibilityRules.map((r) => `${r.rule_type} ${r.condition} ${r.value}`).join('\n'),
+    })
+  }
+
+  if (rejectionReasons?.length) {
+    blocks.push({
+      title: 'Common rejection reasons and fixes',
+      content: rejectionReasons
+        .map((r) => `${r.reason_code}: ${r.description} — Fix: ${r.fix_instructions}`)
+        .join('\n'),
+    })
+  }
+
+  return blocks
 }
 
 async function cacheWebFinding({ serviceId, question, answer, webSources }) {
