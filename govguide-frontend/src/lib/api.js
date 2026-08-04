@@ -8,26 +8,30 @@ export async function checkBackendHealth() {
   return res.json()
 }
 
-export async function sendChatMessage({ accessToken, message, sessionId, serviceSlug }) {
-  const res = await fetch(`${API_BASE_URL}/chat/message`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({ message, sessionId, serviceSlug }),
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `Chat request failed with status ${res.status}`)
-  }
+export async function fetchServices() {
+  const res = await fetch(`${API_BASE_URL}/services`)
+  if (!res.ok) throw new Error(`Failed to load services (status ${res.status})`)
   return res.json()
 }
 
-export async function uploadDocument({ accessToken, file, sessionId }) {
+export async function fetchServiceDetail(slug) {
+  const res = await fetch(`${API_BASE_URL}/services/${slug}`)
+  if (!res.ok) throw new Error(`Failed to load service (status ${res.status})`)
+  return res.json()
+}
+
+export async function searchFaq({ query, serviceSlug }) {
+  const params = new URLSearchParams({ q: query })
+  if (serviceSlug) params.set('serviceSlug', serviceSlug)
+  const res = await fetch(`${API_BASE_URL}/faq?${params.toString()}`)
+  if (!res.ok) throw new Error(`Search failed (status ${res.status})`)
+  return res.json()
+}
+
+export async function uploadDocument({ accessToken, file, serviceSlug }) {
   const formData = new FormData()
   formData.append('file', file)
-  if (sessionId) formData.append('sessionId', sessionId)
+  if (serviceSlug) formData.append('serviceSlug', serviceSlug)
 
   const res = await fetch(`${API_BASE_URL}/documents/upload`, {
     method: 'POST',

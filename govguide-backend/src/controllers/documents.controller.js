@@ -14,18 +14,11 @@ export async function uploadDocument(req, res, next) {
       return res.status(400).json({ error: `Unsupported file type: ${file.mimetype}` })
     }
 
-    const { sessionId } = req.body
-    let session = null
-    if (sessionId) {
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('id, user_id, service_id')
-        .eq('id', sessionId)
-        .single()
-      if (error || !data || data.user_id !== req.user.id) {
-        return res.status(404).json({ error: 'Session not found.' })
-      }
-      session = data
+    const { serviceSlug } = req.body
+    let serviceId = null
+    if (serviceSlug) {
+      const { data: service } = await supabase.from('services').select('id').eq('slug', serviceSlug).single()
+      serviceId = service?.id ?? null
     }
 
     const storagePath = `${req.user.id}/${randomUUID()}-${file.originalname}`
@@ -39,11 +32,11 @@ export async function uploadDocument(req, res, next) {
       mimeType: file.mimetype,
     })
 
-    if (analysis.isRejectionLetter && session?.service_id) {
+    if (analysis.isRejectionLetter && serviceId) {
       const { data: rejectionReasons } = await supabase
         .from('rejection_reasons')
         .select('reason_code, description, fix_instructions')
-        .eq('service_id', session.service_id)
+        .eq('service_id', serviceId)
 
       const match = await matchRejectionReason({
         extractedText: analysis.extractedText,
@@ -56,7 +49,7 @@ export async function uploadDocument(req, res, next) {
       .from('documents_uploaded')
       .insert({
         user_id: req.user.id,
-        session_id: sessionId ?? null,
+        service_id: serviceId,
         file_url: storagePath,
         doc_type_detected: analysis.docTypeDetected,
         checked_at: new Date().toISOString(),

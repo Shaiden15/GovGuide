@@ -3,8 +3,9 @@ import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import healthRoutes from './routes/health.routes.js'
-import chatRoutes from './routes/chat.routes.js'
 import documentsRoutes from './routes/documents.routes.js'
+import servicesRoutes from './routes/services.routes.js'
+import faqRoutes from './routes/faq.routes.js'
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js'
 
 export function createApp() {
@@ -20,8 +21,9 @@ export function createApp() {
   app.use(morgan('dev'))
 
   app.use('/api', healthRoutes)
-  app.use('/api', chatRoutes)
   app.use('/api', documentsRoutes)
+  app.use('/api', servicesRoutes)
+  app.use('/api', faqRoutes)
 
   app.use(notFoundHandler)
   app.use(errorHandler)
