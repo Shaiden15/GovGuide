@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-govguide-green: #007749;
+  --color-govguide-gold: #ffb612;
+  --color-govguide-blue: #002395;
+  --color-govguide-red: #de3831;
+  --color-govguide-black: #1a1a1a;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+}

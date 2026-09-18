@@ -1,0 +1,20 @@
+node_modules
+.env
+.env.*
+!.env.example
+
+# Google service account keys
+*-key.json
+google-vision-key.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.sw?
